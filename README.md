@@ -120,6 +120,13 @@ miniblog/
 - Apache Web 服务器，启用 mod_rewrite
 - `documents/`、`backups/` 和 `includes/` 目录的写入权限
 
+## 部分截图
+<img width="1919" height="911" alt="主页" src="https://github.com/user-attachments/assets/ef429cec-22cb-4cc3-a47f-3436033110ed" />
+<img width="1914" height="903" alt="创建账号" src="https://github.com/user-attachments/assets/1fa42ddd-8225-4f1c-933f-d071251b584f" />
+<img width="1916" height="900" alt="后台" src="https://github.com/user-attachments/assets/dd0465d6-03d1-413f-be32-807d6268933d" />
+<img width="1915" height="905" alt="备份恢复" src="https://github.com/user-attachments/assets/c66d4fc5-90eb-4a40-b2d5-78bff58b2d6a" />
+
+
 ## 许可证
 
 可自由使用和修改。
