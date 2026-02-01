@@ -151,6 +151,7 @@ if ($action === 'edit' && isset($_GET['title'])) {
             <a href="../index.php">返回主页</a>
             <a href="dashboard.php" class="<?php echo $action === 'list' ? 'active' : ''; ?>">文章列表</a>
             <a href="dashboard.php?action=create" class="<?php echo $action === 'create' ? 'active' : ''; ?>">新建文章</a>
+            <a href="settings.php">站点设置</a>
             <a href="backup.php">备份恢复</a>
             <a href="logout.php">退出登录</a>
         </nav>

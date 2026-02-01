@@ -178,6 +178,7 @@ $articles = $articleManager->getAllArticles();
             <a href="../index.php">返回主页</a>
             <a href="dashboard.php">文章列表</a>
             <a href="dashboard.php?action=create">新建文章</a>
+            <a href="settings.php">站点设置</a>
             <a href="backup.php" class="active">备份恢复</a>
             <a href="logout.php">退出登录</a>
         </nav>
