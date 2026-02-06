@@ -5,13 +5,15 @@
 ## 功能特性
 
 - **无数据库**：所有内容以 Markdown 文件形式存储在 `documents/` 目录中
-- **安全**：内置防护 SQL 注入、XSS、文件遍历等攻击
-- **管理面板**：完整的文章增删改查功能
+- **智能登录**：首次访问管理后台自动进入管理员设置页面，无需手动删除配置文件
+- **完整的管理面板**：文章管理、站点设置、分类管理、备份恢复
+- **高级备份系统**：支持递归备份所有文章（包括子目录），支持上传本地备份文件恢复
 - **导入/导出**：单篇文章导入/导出功能
-- **备份/恢复**：完整的系统备份和恢复
 - **图片支持**：上传并显示文章图片
 - **搜索**：全文搜索所有文章
-- **响应式设计**：适配所有设备
+- **分类系统**：文章分类管理和筛选
+- **响应式设计**：适配所有设备（PC、平板、手机）
+- **安全**：内置防护 SQL 注入、XSS、文件遍历等攻击
 
 ## 安装
 
@@ -20,8 +22,8 @@
    - `documents/`
    - `backups/`
    - `includes/`
-3. 在浏览器中访问 `http://yourdomain.com/install.php`
-4. 设置管理员用户名和密码
+3. 在浏览器中访问 `http://yourdomain.com/admin/` 或 `http://yourdomain.com/admin/login.php`
+4. 首次访问会自动进入管理员设置页面，设置用户名和密码
 5. 安装完成后删除 `install.php`（推荐）
 
 ## 目录结构
@@ -32,19 +34,20 @@ miniblog/
 │   ├── login.php       # 管理员登录页面
 │   ├── logout.php      # 管理员登出
 │   ├── dashboard.php   # 文章管理
+│   ├── settings.php    # 站点设置 & 分类管理
+│   ├── change_password.php # 修改密码
 │   └── backup.php      # 备份/恢复 & 导入/导出
 ├── documents/          # 文章存储（Markdown 文件）
 ├── backups/            # 备份文件
 ├── includes/           # 核心类
 │   ├── Security.php    # 安全工具
 │   ├── ArticleManager.php
-│   └── BackupManager.php
-├── assets/             # 静态资源（如需要）
+│   ├── BackupManager.php
+│   └── admin_credentials.php # 管理员凭据
 ├── config.php          # 主配置文件
 ├── index.php           # 首页
 ├── article.php         # 单篇文章视图
 ├── image.php           # 图片处理器
-├── api.php             # REST API
 ├── install.php         # 安装脚本
 └── .htaccess           # Apache 配置
 ```
@@ -56,23 +59,43 @@ miniblog/
 1. 在 `http://yourdomain.com/admin/login.php` 登录管理面板
 2. 点击"新建文章"
 3. 输入标题和内容（支持 Markdown）
-4. 点击"保存文章"
+4. 选择分类（可选）
+5. 点击"保存文章"
 
 ### 管理文章
 
 - **编辑**：在列表中点击任意文章的"编辑"
 - **删除**：点击"删除"移除文章
 - **上传图片**：编辑时，上传图片将保存为 `filename.jpg/png/gif`
+- **分类筛选**：使用分类导航筛选文章
+
+### 站点设置
+
+1. 登录管理面板
+2. 点击"站点设置"
+3. 修改站点名称和描述
+4. 管理文章分类（添加/删除分类）
+5. 点击"保存设置"
+
+### 修改密码
+
+1. 登录管理面板
+2. 点击右上角账户下拉菜单
+3. 选择"修改密码"
+4. 输入当前密码和新密码
+5. 点击"保存修改"
 
 ### 导入/导出
 
 - **导出**：选择一篇文章并导出为 Markdown 文件
-- **导入**：上传 Markdown 文件创建新文章
+- **导入**：上传 Markdown 文件创建新文章，可选择分类
 
 ### 备份/恢复
 
-- **创建备份**：创建所有文章的 ZIP 压缩包
-- **恢复**：从之前的备份恢复（将覆盖当前内容）
+- **创建备份**：创建所有文章的 ZIP 压缩包（包括子目录）
+- **下载备份**：将备份文件下载到本地
+- **恢复备份**：从之前的备份恢复（将覆盖当前内容）
+- **上传恢复**：上传本地备份文件进行恢复
 - 自动保留最多 10 个备份
 
 ## 安全特性
@@ -84,7 +107,7 @@ miniblog/
 - **文件验证**：上传的文件会验证类型和内容
 - **路径遍历防护**：文件访问限制在允许的目录内
 - **XSS 防护**：输出正确转义
-- **安全日志**：安全事件记录到 `backups/security.log`
+- **安全日志**：安全事件记录
 
 ## 重置管理员凭据
 
@@ -92,27 +115,8 @@ miniblog/
 
 1. 打开 `includes/admin_credentials.php`
 2. 删除该文件中的所有内容
-3. 再次访问 `http://yourdomain.com/install.php`
-4. 设置新的凭据
-
-## API 接口
-
-### 公开接口
-
-- `GET /api/articles` - 列出所有文章
-- `GET /api/articles?q=search` - 搜索文章
-- `GET /api/articles/{title}` - 获取单篇文章
-
-### 管理员接口（需要认证）
-
-- `POST /api/admin/articles` - 创建文章
-- `PUT /api/admin/articles/{title}` - 更新文章
-- `DELETE /api/admin/articles/{title}` - 删除文章
-- `GET /api/admin/backups` - 列出备份
-- `POST /api/admin/backups` - 创建备份
-- `POST /api/admin/backups/{name}` - 恢复/删除备份
-- `POST /api/admin/import` - 导入文章
-- `GET /api/admin/export/{title}` - 导出文章
+3. 再次访问 `http://yourdomain.com/admin/`
+4. 系统会自动引导您重新设置管理员凭据
 
 ## 系统要求
 

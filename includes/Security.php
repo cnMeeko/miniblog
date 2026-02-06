@@ -21,7 +21,6 @@ class Security {
         '/fwrite\s*\(/i',
         '/include\s*\(/i',
         '/require\s*\(/i',
-        '/`[^`]*`/',
     ];
     
     public static function sanitizeInput($data) {
@@ -96,11 +95,33 @@ class Security {
             return false;
         }
         
-        if (self::detectMaliciousContent($content)) {
+        // 移除可能的控制字符，但保留换行符和制表符
+        $cleanContent = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $content);
+        
+        // 检测恶意内容前，先处理代码块，避免误判
+        $cleanContent = self::processCodeBlocks($cleanContent);
+        
+        if (self::detectMaliciousContent($cleanContent)) {
             return false;
         }
         
         return true;
+    }
+    
+    private static function processCodeBlocks($content) {
+        // 匹配代码块（```开头和结尾）
+        $content = preg_replace_callback('/```[\s\S]*?```/', function($matches) {
+            // 对于代码块内容，只保留空格和可见字符
+            return preg_replace('/[^\s\x20-\x7E]/', '', $matches[0]);
+        }, $content);
+        
+        // 匹配行内代码（`开头和结尾）
+        $content = preg_replace_callback('/`[^`]*`/', function($matches) {
+            // 对于行内代码内容，只保留空格和可见字符
+            return preg_replace('/[^\s\x20-\x7E]/', '', $matches[0]);
+        }, $content);
+        
+        return $content;
     }
     
     public static function rateLimitCheck($identifier = null, $maxAttempts = 5, $timeWindow = 300) {

@@ -1,17 +1,19 @@
-# MiniBlog - Database-less Blog System
+# MiniBlog - Database-Free Blog System
 
 A simple, secure blog system that doesn't require a database. All articles are stored as Markdown files.
 
 ## Features
 
-- **Database-less**: All content stored as Markdown files in the `documents/` directory
-- **Secure**: Built-in protection against SQL injection, XSS, file traversal, and other attacks
-- **Admin Panel**: Full CRUD operations for articles
+- **Database-Free**: All content is stored as Markdown files in the `documents/` directory
+- **Smart Login**: First access to admin panel automatically redirects to admin setup page, no need to manually delete config files
+- **Complete Admin Panel**: Article management, site settings, category management, backup/restore
+- **Advanced Backup System**: Supports recursive backup of all articles (including subdirectories), supports uploading local backup files for restoration
 - **Import/Export**: Single article import/export functionality
-- **Backup/Restore**: Full system backup and restore
-- **Image Support**: Upload and display images with articles
-- **Search**: Full-text search across all articles
-- **Responsive Design**: Works on all devices
+- **Image Support**: Upload and display article images
+- **Search**: Full-text search for all articles
+- **Category System**: Article category management and filtering
+- **Responsive Design**: Adapts to all devices (PC, tablet, mobile)
+- **Security**: Built-in protection against SQL injection, XSS, directory traversal, etc.
 
 ## Installation
 
@@ -20,8 +22,8 @@ A simple, secure blog system that doesn't require a database. All articles are s
    - `documents/`
    - `backups/`
    - `includes/`
-3. Visit `http://yourdomain.com/install.php` in your browser
-4. Set up your admin username and password
+3. Access `http://yourdomain.com/admin/` or `http://yourdomain.com/admin/login.php` in your browser
+4. First access will automatically redirect to admin setup page, set your username and password
 5. Delete `install.php` after installation (recommended)
 
 ## Directory Structure
@@ -32,19 +34,20 @@ miniblog/
 │   ├── login.php       # Admin login page
 │   ├── logout.php      # Admin logout
 │   ├── dashboard.php   # Article management
+│   ├── settings.php    # Site settings & category management
+│   ├── change_password.php # Change password
 │   └── backup.php      # Backup/restore & import/export
 ├── documents/          # Article storage (Markdown files)
 ├── backups/            # Backup files
 ├── includes/           # Core classes
-│   ├── Security.php    # Security utilities
+│   ├── Security.php    # Security tools
 │   ├── ArticleManager.php
-│   └── BackupManager.php
-├── assets/             # Static assets (if needed)
-├── config.php          # Main configuration
+│   ├── BackupManager.php
+│   └── admin_credentials.php # Admin credentials
+├── config.php          # Main configuration file
 ├── index.php           # Homepage
 ├── article.php         # Single article view
 ├── image.php           # Image handler
-├── api.php             # REST API
 ├── install.php         # Installation script
 └── .htaccess           # Apache configuration
 ```
@@ -53,71 +56,72 @@ miniblog/
 
 ### Creating Articles
 
-1. Login to admin panel at `http://yourdomain.com/admin/login.php`
+1. Log in to the admin panel at `http://yourdomain.com/admin/login.php`
 2. Click "New Article"
-3. Enter title and content (supports Markdown)
-4. Click "Save Article"
+3. Enter title and content (Markdown supported)
+4. Select category (optional)
+5. Click "Save Article"
 
 ### Managing Articles
 
 - **Edit**: Click "Edit" on any article in the list
-- **Delete**: Click "Delete" to remove an article
-- **Upload Images**: While editing, upload images that will be saved as `filename.jpg/png/gif`
+- **Delete**: Click "Delete" to remove articles
+- **Upload Images**: When editing, images will be saved as `filename.jpg/png/gif`
+- **Category Filtering**: Use category navigation to filter articles
+
+### Site Settings
+
+1. Log in to the admin panel
+2. Click "Site Settings"
+3. Modify site name and description
+4. Manage article categories (add/delete categories)
+5. Click "Save Settings"
+
+### Changing Password
+
+1. Log in to the admin panel
+2. Click the account dropdown menu in the top right
+3. Select "Change Password"
+4. Enter current password and new password
+5. Click "Save Changes"
 
 ### Import/Export
 
-- **Export**: Select an article and export it as a Markdown file
-- **Import**: Upload a Markdown file to create a new article
+- **Export**: Select an article and export as Markdown file
+- **Import**: Upload Markdown file to create new article, category selection available
 
 ### Backup/Restore
 
-- **Create Backup**: Creates a ZIP file of all articles
-- **Restore**: Restore from a previous backup (overwrites current content)
-- Maximum 10 backups are kept automatically
+- **Create Backup**: Create ZIP archive of all articles (including subdirectories)
+- **Download Backup**: Download backup files to local computer
+- **Restore Backup**: Restore from previous backup (will overwrite current content)
+- **Upload Restore**: Upload local backup files for restoration
+- Automatically keeps up to 10 backups
 
 ## Security Features
 
 - **CSRF Protection**: All forms include CSRF tokens
-- **Rate Limiting**: Login attempts are rate-limited
+- **Rate Limiting**: Login attempts are rate limited
 - **Session Timeout**: Admin sessions expire after 30 minutes
 - **Input Sanitization**: All user input is sanitized
 - **File Validation**: Uploaded files are validated for type and content
-- **Path Traversal Protection**: File access is restricted to allowed directories
-- **XSS Protection**: Output is properly escaped
-- **Security Logging**: Security events are logged to `backups/security.log`
+- **Directory Traversal Protection**: File access restricted to allowed directories
+- **XSS Protection**: Output properly escaped
+- **Security Logging**: Security events logged
 
-## Reset Admin Credentials
+## Resetting Admin Credentials
 
-If you need to reset the admin credentials:
+If you need to reset admin credentials:
 
 1. Open `includes/admin_credentials.php`
-2. Delete all content in that file
-3. Visit `http://yourdomain.com/install.php` again
-4. Set up new credentials
+2. Delete all content in the file
+3. Access `http://yourdomain.com/admin/` again
+4. System will automatically guide you to reset admin credentials
 
-## API Endpoints
-
-### Public Endpoints
-
-- `GET /api/articles` - List all articles
-- `GET /api/articles?q=search` - Search articles
-- `GET /api/articles/{title}` - Get single article
-
-### Admin Endpoints (Requires authentication)
-
-- `POST /api/admin/articles` - Create article
-- `PUT /api/admin/articles/{title}` - Update article
-- `DELETE /api/admin/articles/{title}` - Delete article
-- `GET /api/admin/backups` - List backups
-- `POST /api/admin/backups` - Create backup
-- `POST /api/admin/backups/{name}` - Restore/delete backup
-- `POST /api/admin/import` - Import article
-- `GET /api/admin/export/{title}` - Export article
-
-## Requirements
+## System Requirements
 
 - PHP 8.0 or higher
-- Apache web server with mod_rewrite enabled
+- Apache Web Server with mod_rewrite enabled
 - Write permissions for `documents/`, `backups/`, and `includes/` directories
 
 ## License

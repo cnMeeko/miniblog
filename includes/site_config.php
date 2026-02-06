@@ -1,4 +1,4 @@
 {
-    "site_name": "Meeko_个人笔记",
-    "site_description": "个人笔记备份"
+    "site_name": "迷你博客",
+    "site_description": "无数据库迷你博客"
 }

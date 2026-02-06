@@ -10,6 +10,14 @@ Security::checkSessionTimeout();
 $articleManager = new ArticleManager(DOCUMENTS_DIR);
 $backupManager = new BackupManager(BACKUPS_DIR, DOCUMENTS_DIR);
 
+$currentUsername = '';
+if (file_exists(ADMIN_CREDENTIALS_FILE) && filesize(ADMIN_CREDENTIALS_FILE) > 0) {
+    require ADMIN_CREDENTIALS_FILE;
+    if (isset($admin_username)) {
+        $currentUsername = $admin_username;
+    }
+}
+
 $action = $_GET['action'] ?? 'list';
 $message = '';
 $messageType = '';
@@ -65,7 +73,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
             case 'import_article':
                 if (isset($_FILES['import_file'])) {
-                    $result = $backupManager->importArticle($_FILES['import_file']);
+                    $importCategory = Security::sanitizeInput($_POST['import_category'] ?? '');
+                    $result = $backupManager->importArticle($_FILES['import_file'], $importCategory);
+                    $message = $result['message'];
+                    $messageType = $result['success'] ? 'success' : 'error';
+                }
+                break;
+                
+            case 'upload_backup':
+                if (isset($_FILES['backup_file'])) {
+                    $result = $backupManager->uploadAndRestoreBackup($_FILES['backup_file']);
                     $message = $result['message'];
                     $messageType = $result['success'] ? 'success' : 'error';
                 }
@@ -108,11 +125,23 @@ $articles = $articleManager->getAllArticles();
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px 40px; display: flex; justify-content: space-between; align-items: center; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px 40px; display: flex; justify-content: space-between; align-items: center; position: relative; }
         .header h1 { font-size: 24px; }
-        .nav { display: flex; gap: 20px; }
+        .nav { display: flex; gap: 20px; align-items: center; }
         .nav a { color: white; text-decoration: none; padding: 8px 16px; border-radius: 6px; transition: background 0.3s; }
         .nav a:hover, .nav a.active { background: rgba(255,255,255,0.2); }
+        .account-dropdown { position: relative; }
+        .account-btn { color: white; text-decoration: none; padding: 8px 16px; border-radius: 6px; transition: background 0.3s; cursor: pointer; display: flex; align-items: center; gap: 5px; }
+        .account-btn:hover { background: rgba(255,255,255,0.2); }
+        .account-btn::after { content: '▼'; font-size: 10px; transition: transform 0.3s; }
+        .account-dropdown.active .account-btn::after { transform: rotate(180deg); }
+        .dropdown-menu { position: absolute; top: 100%; right: 0; background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); min-width: 160px; overflow: hidden; display: none; z-index: 1000; margin-top: 5px; }
+        .account-dropdown.active .dropdown-menu { display: block; }
+        .dropdown-item { display: block; padding: 12px 20px; color: #333; text-decoration: none; transition: background 0.2s; font-size: 14px; }
+        .dropdown-item:hover { background: #f5f5f5; }
+        .dropdown-item:first-child { border-radius: 8px 8px 0 0; }
+        .dropdown-item:last-child { border-radius: 0 0 8px 8px; }
+        .dropdown-divider { height: 1px; background: #eee; margin: 0; }
         .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
         .card { background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 30px; margin-bottom: 20px; }
         .alert { padding: 12px 20px; border-radius: 6px; margin-bottom: 20px; }
@@ -138,17 +167,18 @@ $articles = $articleManager->getAllArticles();
         .actions { display: flex; gap: 10px; }
         .section-title { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: #333; border-bottom: 2px solid #667eea; padding-bottom: 10px; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        @media (max-width: 768px) {
-            .grid { grid-template-columns: 1fr; }
-        }
         .meta { color: #888; font-size: 13px; }
         .info-box { background: #e3f2fd; border-left: 4px solid #2196f3; padding: 15px; margin-bottom: 20px; font-size: 14px; color: #1565c0; }
         
         @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
             .header { padding: 15px 20px; }
             .header h1 { font-size: 20px; }
             .nav { gap: 10px; flex-wrap: wrap; justify-content: center; }
             .nav a { padding: 6px 12px; font-size: 13px; }
+            .account-btn { padding: 6px 12px; font-size: 13px; }
+            .dropdown-menu { right: 0; min-width: 140px; }
+            .dropdown-item { padding: 10px 16px; font-size: 13px; }
             .container { padding: 20px 15px; }
             .card { padding: 20px; }
             table { font-size: 13px; }
@@ -162,6 +192,7 @@ $articles = $articleManager->getAllArticles();
         @media (max-width: 480px) {
             .header h1 { font-size: 18px; }
             .nav a { padding: 5px 10px; font-size: 12px; }
+            .account-btn { padding: 5px 10px; font-size: 12px; }
             .card { padding: 15px; }
             table { display: block; overflow-x: auto; }
             th, td { padding: 8px 5px; }
@@ -180,7 +211,14 @@ $articles = $articleManager->getAllArticles();
             <a href="dashboard.php?action=create">新建文章</a>
             <a href="settings.php">站点设置</a>
             <a href="backup.php" class="active">备份恢复</a>
-            <a href="logout.php">退出登录</a>
+            <div class="account-dropdown" id="accountDropdown">
+                <div class="account-btn" onclick="toggleDropdown()">账户：<?php echo htmlspecialchars($currentUsername); ?></div>
+                <div class="dropdown-menu">
+                    <a href="change_password.php" class="dropdown-item">修改密码</a>
+                    <div class="dropdown-divider"></div>
+                    <a href="logout.php" class="dropdown-item">退出登录</a>
+                </div>
+            </div>
         </nav>
     </div>
     
@@ -201,6 +239,20 @@ $articles = $articleManager->getAllArticles();
                     <input type="hidden" name="csrf_token" value="<?php echo $csrfToken; ?>">
                     <button type="submit" class="btn btn-primary">创建新备份</button>
                     <button type="button" onclick="downloadBackup()" class="btn btn-success">下载所有文章</button>
+                </form>
+                
+                <div class="info-box" style="margin-top: 20px; margin-bottom: 20px;">
+                    从本地上传备份文件进行恢复。请确保上传的是通过本系统创建的备份文件（ZIP格式）。
+                </div>
+                
+                <form method="POST" enctype="multipart/form-data" style="margin-bottom: 30px;">
+                    <div class="form-group">
+                        <label>选择备份文件（ZIP格式）</label>
+                        <input type="file" name="backup_file" accept=".zip" required>
+                    </div>
+                    <input type="hidden" name="action" value="upload_backup">
+                    <input type="hidden" name="csrf_token" value="<?php echo $csrfToken; ?>">
+                    <button type="submit" class="btn btn-primary" onclick="return confirm('恢复备份将覆盖当前所有文章，确定要继续吗？');">上传并恢复备份</button>
                 </form>
                 
                 <script>
@@ -292,10 +344,21 @@ $articles = $articleManager->getAllArticles();
                 </form>
                 
                 <h3 style="margin-bottom: 15px; font-size: 16px; color: #555;">导入文章</h3>
+                <?php $categories = $articleManager->getAllCategories(); ?>
                 <form method="POST" enctype="multipart/form-data">
                     <div class="form-group">
                         <label>选择要导入的Markdown文件</label>
                         <input type="file" name="import_file" accept=".md" required>
+                    </div>
+                    <div class="form-group">
+                        <label>文章分类（可选，如不填写将使用文件中的分类）</label>
+                        <select name="import_category" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+                            <option value="">请选择分类（可选）</option>
+                            <?php foreach ($categories as $cat): ?>
+                                <option value="<?php echo htmlspecialchars($cat); ?>"><?php echo htmlspecialchars($cat); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <p style="color: #888; font-size: 13px; margin-top: 5px;">如果文件中已包含分类信息，选择此字段将覆盖原有分类</p>
                     </div>
                     <input type="hidden" name="action" value="import_article">
                     <input type="hidden" name="csrf_token" value="<?php echo $csrfToken; ?>">
@@ -304,5 +367,19 @@ $articles = $articleManager->getAllArticles();
             </div>
         </div>
     </div>
+    
+    <script>
+        function toggleDropdown() {
+            const dropdown = document.getElementById('accountDropdown');
+            dropdown.classList.toggle('active');
+        }
+        
+        document.addEventListener('click', function(event) {
+            const dropdown = document.getElementById('accountDropdown');
+            if (!dropdown.contains(event.target)) {
+                dropdown.classList.remove('active');
+            }
+        });
+    </script>
 </body>
 </html>

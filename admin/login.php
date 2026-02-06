@@ -18,28 +18,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (empty($username) || empty($password)) {
             $error = '请输入用户名和密码';
         } else {
-            if (file_exists(ADMIN_CREDENTIALS_FILE)) {
-                require ADMIN_CREDENTIALS_FILE;
-                
-                if (isset($admin_username) && isset($admin_password_hash)) {
-                    if ($username === $admin_username && password_verify($password, $admin_password_hash)) {
-                        Security::setAdminSession();
-                        Security::clearRateLimit();
-                        Security::logSecurityEvent('admin_login_success', ['username' => $username]);
-                        header('Location: dashboard.php');
-                        exit;
+                if (file_exists(ADMIN_CREDENTIALS_FILE) && filesize(ADMIN_CREDENTIALS_FILE) > 0) {
+                    require ADMIN_CREDENTIALS_FILE;
+                    
+                    if (isset($admin_username) && isset($admin_password_hash)) {
+                        if ($username === $admin_username && password_verify($password, $admin_password_hash)) {
+                            Security::setAdminSession();
+                            Security::clearRateLimit();
+                            Security::logSecurityEvent('admin_login_success', ['username' => $username]);
+                            header('Location: dashboard.php');
+                            exit;
+                        } else {
+                            $error = '用户名或密码错误';
+                            Security::logSecurityEvent('admin_login_failed', ['username' => $username]);
+                        }
                     } else {
-                        $error = '用户名或密码错误';
-                        Security::logSecurityEvent('admin_login_failed', ['username' => $username]);
+                        header('Location: ../install.php');
+                        exit;
                     }
                 } else {
-                    $error = '配置文件损坏，请重新安装';
+                    header('Location: ../install.php');
+                    exit;
                 }
-            } else {
-                header('Location: ../install.php');
-                exit;
             }
-        }
     }
 }
 

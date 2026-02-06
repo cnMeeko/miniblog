@@ -29,19 +29,18 @@ class BackupManager {
             return ['success' => false, 'message' => '无法创建备份文件'];
         }
         
-        $files = glob($this->documentsDir . '/*');
+        $fileCount = 0;
         
-        foreach ($files as $file) {
-            if (is_file($file)) {
-                $filename = basename($file);
-                $zip->addFile($file, $filename);
-            }
-        }
+        // 递归添加所有文件
+        $this->addDirectoryToZip($zip, $this->documentsDir, '');
+        
+        // 统计实际备份的文件数
+        $fileCount = $zip->numFiles - 1; // 减去 metadata.json
         
         $metadata = [
             'created' => time(),
             'created_date' => date('Y-m-d H:i:s'),
-            'article_count' => count($files),
+            'article_count' => $fileCount,
             'version' => '1.0'
         ];
         
@@ -56,6 +55,54 @@ class BackupManager {
         return ['success' => true, 'message' => '备份创建成功', 'backup_name' => $backupName];
     }
     
+    private function addDirectoryToZip($zip, $dir, $prefix) {
+        $files = glob($dir . '/*');
+        
+        foreach ($files as $file) {
+            if (is_file($file)) {
+                $filename = basename($file);
+                $arcname = $prefix . $filename;
+                $zip->addFile($file, $arcname);
+            } elseif (is_dir($file)) {
+                $dirname = basename($file);
+                $newPrefix = $prefix . $dirname . '/';
+                $this->addDirectoryToZip($zip, $file, $newPrefix);
+            }
+        }
+    }
+    
+    private function restoreFilesFromDirectory($sourceDir, $destDir, &$restoredCount) {
+        $files = glob($sourceDir . '/*');
+        
+        foreach ($files as $file) {
+            $filename = basename($file);
+            
+            if ($filename === 'metadata.json') {
+                continue;
+            }
+            
+            if (!Security::validatePath($file, $sourceDir)) {
+                continue;
+            }
+            
+            $destPath = $destDir . '/' . $filename;
+            
+            if (is_file($file)) {
+                $content = file_get_contents($file);
+                if ($content !== false && Security::validateContentType($content)) {
+                    if (file_put_contents($destPath, $content, LOCK_EX) !== false) {
+                        $restoredCount++;
+                    }
+                }
+            } elseif (is_dir($file)) {
+                if (!is_dir($destPath)) {
+                    mkdir($destPath, 0755, true);
+                }
+                $this->restoreFilesFromDirectory($file, $destPath, $restoredCount);
+            }
+        }
+    }
+    
     public function restoreBackup($backupName) {
         $sanitizedBackupName = Security::sanitizeFilename($backupName);
         $backupPath = $this->backupsDir . '/' . $sanitizedBackupName;
@@ -64,7 +111,7 @@ class BackupManager {
             return ['success' => false, 'message' => '备份文件不存在'];
         }
         
-        if (!$this->security->validatePath($backupPath, $this->backupsDir)) {
+        if (!Security::validatePath($backupPath, $this->backupsDir)) {
             return ['success' => false, 'message' => '非法备份路径'];
         }
         
@@ -106,31 +153,10 @@ class BackupManager {
         
         $zip->close();
         
-        $files = glob($tempDir . '/*');
         $restoredCount = 0;
         
-        foreach ($files as $file) {
-            $filename = basename($file);
-            
-            if ($filename === 'metadata.json') {
-                continue;
-            }
-            
-            if (!$this->security->validatePath($file, $tempDir)) {
-                continue;
-            }
-            
-            $destPath = $this->documentsDir . '/' . $filename;
-            
-            if (is_file($file)) {
-                $content = file_get_contents($file);
-                if ($content !== false && Security::validateContentType($content)) {
-                    if (file_put_contents($destPath, $content, LOCK_EX) !== false) {
-                        $restoredCount++;
-                    }
-                }
-            }
-        }
+        // 递归恢复所有文件
+        $this->restoreFilesFromDirectory($tempDir, $this->documentsDir, $restoredCount);
         
         $this->cleanupDirectory($tempDir);
         
@@ -187,7 +213,7 @@ class BackupManager {
             return ['success' => false, 'message' => '备份文件不存在'];
         }
         
-        if (!$this->security->validatePath($backupPath, $this->backupsDir)) {
+        if (!Security::validatePath($backupPath, $this->backupsDir)) {
             return ['success' => false, 'message' => '非法备份路径'];
         }
         
@@ -211,6 +237,9 @@ class BackupManager {
         
         $content = "---\n";
         $content .= "title: {$article['title']}\n";
+        if (!empty($article['category'])) {
+            $content .= "category: {$article['category']}\n";
+        }
         $content .= "created: {$article['created_date']}\n";
         $content .= "modified: {$article['modified_date']}\n";
         $content .= "---\n\n";
@@ -228,7 +257,7 @@ class BackupManager {
         ];
     }
     
-    public function importArticle($file) {
+    public function importArticle($file, $importCategory = '') {
         if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
             return ['success' => false, 'message' => '无效的文件上传'];
         }
@@ -243,7 +272,7 @@ class BackupManager {
             return ['success' => false, 'message' => '文件大小不能超过5MB'];
         }
         
-        $content = file_get_contents($file['tmp_name']);
+        $content = $this->getFileContentWithEncoding($file['tmp_name']);
         if ($content === false) {
             return ['success' => false, 'message' => '无法读取文件'];
         }
@@ -284,11 +313,18 @@ class BackupManager {
             $title = pathinfo($file['name'], PATHINFO_FILENAME);
         }
         
+        $category = isset($frontMatter['category']) ? $frontMatter['category'] : '';
+        
+        // 如果用户指定了分类，则覆盖文件中的分类
+        if (!empty($importCategory)) {
+            $category = $importCategory;
+        }
+        
         if (empty($body)) {
             $body = $content;
         }
         
-        $result = $this->articleManager->createArticle($title, $body);
+        $result = $this->articleManager->createArticle($title, $body, $category);
         
         return $result;
     }
@@ -338,5 +374,93 @@ class BackupManager {
         $bytes /= pow(1024, $pow);
         
         return round($bytes, 2) . ' ' . $units[$pow];
+    }
+    
+    private function getFileContentWithEncoding($filePath) {
+        $content = file_get_contents($filePath);
+        if ($content === false) {
+            return false;
+        }
+        
+        // 检测并处理BOM（字节顺序标记）
+        if (substr($content, 0, 3) === "\xEF\xBB\xBF") {
+            $content = substr($content, 3);
+        } elseif (substr($content, 0, 2) === "\xFF\xFE") {
+            $content = substr($content, 2);
+            // 简单处理UTF-16LE，移除奇数字节
+            $content = preg_replace('/(.)./', '$1', $content);
+        } elseif (substr($content, 0, 2) === "\xFE\xFF") {
+            $content = substr($content, 2);
+            // 简单处理UTF-16BE，移除奇数字节
+            $content = preg_replace('/(.)./', '$1', $content);
+        }
+        
+        // 标准化行尾格式为Unix风格
+        $content = str_replace(["\r\n", "\r"], "\n", $content);
+        
+        return $content;
+    }
+    
+    public function uploadAndRestoreBackup($file) {
+        if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+            return ['success' => false, 'message' => '无效的文件上传'];
+        }
+        
+        $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+        if (strtolower($ext) !== 'zip') {
+            return ['success' => false, 'message' => '只支持 .zip 文件'];
+        }
+        
+        $maxSize = 20 * 1024 * 1024;
+        if ($file['size'] > $maxSize) {
+            return ['success' => false, 'message' => '文件大小不能超过20MB'];
+        }
+        
+        $zip = new ZipArchive();
+        
+        if ($zip->open($file['tmp_name']) !== true) {
+            return ['success' => false, 'message' => '无法打开备份文件'];
+        }
+        
+        $metadata = null;
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $filename = $zip->getNameIndex($i);
+            if ($filename === 'metadata.json') {
+                $metadata = json_decode($zip->getFromIndex($i), true);
+                break;
+            }
+        }
+        
+        if ($metadata === null) {
+            $zip->close();
+            return ['success' => false, 'message' => '备份文件格式错误'];
+        }
+        
+        $tempDir = $this->backupsDir . '/temp_upload_' . time();
+        if (!mkdir($tempDir, 0755, true)) {
+            $zip->close();
+            return ['success' => false, 'message' => '无法创建临时目录'];
+        }
+        
+        if ($zip->extractTo($tempDir) === false) {
+            $zip->close();
+            $this->cleanupDirectory($tempDir);
+            return ['success' => false, 'message' => '无法解压备份文件'];
+        }
+        
+        $zip->close();
+        
+        $restoredCount = 0;
+        
+        // 递归恢复所有文件
+        $this->restoreFilesFromDirectory($tempDir, $this->documentsDir, $restoredCount);
+        
+        $this->cleanupDirectory($tempDir);
+        
+        return [
+            'success' => true,
+            'message' => "恢复成功，共恢复 {$restoredCount} 个文件",
+            'restored_count' => $restoredCount
+        ];
     }
 }

@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$installed = file_exists(ADMIN_CREDENTIALS_FILE);
+$installed = file_exists(ADMIN_CREDENTIALS_FILE) && filesize(ADMIN_CREDENTIALS_FILE) > 0;
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
